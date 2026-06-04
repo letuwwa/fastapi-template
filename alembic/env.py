@@ -3,12 +3,12 @@ from sqlalchemy import pool
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 
-from app.db.session import DATABASE_URL
+from app.core import settings
 from app.db.models.base_model import BaseModel
 
 
 config = context.config
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
