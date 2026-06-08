@@ -22,3 +22,8 @@ class UserRead(BaseModel):
     last_name: str
     role: UserRole
     is_active: bool
+
+
+class AccessToken(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
