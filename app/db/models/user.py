@@ -34,8 +34,13 @@ class User(BaseModel):
         nullable=False,
     )
 
+    hashed_password: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="role"),
+        Enum(UserRole, name="user_role"),
         default=UserRole.REGULAR,
         nullable=False,
     )
