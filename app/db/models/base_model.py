@@ -24,3 +24,4 @@ class BaseModel(DeclarativeBase, TimestampMixin):
     __abstract__ = True
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    is_active: Mapped[bool] = mapped_column(default=True)
