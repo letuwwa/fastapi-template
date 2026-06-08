@@ -13,6 +13,7 @@ from app.core.security import (
     verify_password,
     get_current_user,
     create_access_token,
+    require_admin,
 )
 
 
@@ -109,3 +110,13 @@ def read_current_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
     return current_user
+
+
+@router.get("/admin-only")
+def read_admin_only(
+    current_user: User = Depends(require_admin),
+) -> dict[str, str]:
+    return {
+        "message": "Admin access granted",
+        "user_id": str(current_user.id),
+    }
