@@ -6,8 +6,8 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
 from datetime import datetime, timedelta, timezone
 
-from app.api.deps import get_db
 from app.core import settings
+from app.db.deps import get_db
 from app.db.models import User, UserRole
 
 

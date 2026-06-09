@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 
-from app.api.deps import get_db
+from app.db.deps import get_db
 from app.db.models import User, UserRole
 from app.api.schemas import AccessToken, UserRead, UserRegister
 from app.core.security import (
