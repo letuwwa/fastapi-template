@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     app_name: str = "My API"
     environment: str = "development"
 
+    allowed_origins: list[str] = ["*"]
+
     postgres_host: str
     postgres_port: int = 5432
     postgres_user: str
