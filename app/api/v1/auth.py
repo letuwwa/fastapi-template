@@ -56,7 +56,7 @@ def register_user(
     user = User(
         email=user_in.email,
         username=user_in.username,
-        surname=user_in.surname,
+        first_name=user_in.first_name,
         last_name=user_in.last_name,
         hashed_password=hash_password(user_in.password),
         role=UserRole.REGULAR,

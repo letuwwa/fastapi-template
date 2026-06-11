@@ -25,7 +25,7 @@ class User(BaseModel):
         nullable=False,
     )
 
-    surname: Mapped[str] = mapped_column(
+    first_name: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
     )
