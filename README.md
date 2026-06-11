@@ -67,7 +67,7 @@ curl http://localhost:8000/api/v1/auth/me \
 app/main.py              FastAPI app
 app/api/v1/auth.py       Auth routes
 app/core/security.py     Password hashing and JWT logic
-app/core/config.py       Env settings
+app/core/settings.py     Env settings
 app/db/models/user.py    User model and roles
 alembic/versions/        DB migrations
 ```
