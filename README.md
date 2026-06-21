@@ -1,4 +1,16 @@
+## FastAPI Template
+
+FastAPI starter with PostgreSQL, SQLAlchemy, Alembic migrations, JWT auth,
+password hashing, and role-based admin protection.
+
+## Requirements
+
+- Python 3.14+
+- PostgreSQL
+- uv
+
 ## Setup
+
 Install dependencies:
 ```bash
 uv sync
@@ -16,6 +28,10 @@ openssl rand -hex 32
 
 Required env values:
 ```env
+APP_NAME=fastapi-template
+ENVIRONMENT=development
+ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:8000","http://127.0.0.1:3000","http://127.0.0.1:8000"]
+
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_USER=postgres
@@ -49,7 +65,23 @@ uv run alembic revision --autogenerate -m "describe change"
 uv run fastapi dev app/main.py
 ```
 
-Login:
+The API is served at `http://localhost:8000`. Interactive docs are available at
+`http://localhost:8000/docs`.
+
+Register a user:
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "username": "exampleuser",
+    "first_name": "Example",
+    "last_name": "User",
+    "password": "password123"
+  }'
+```
+
+Login with an email or username:
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -60,6 +92,25 @@ Use token:
 ```bash
 curl http://localhost:8000/api/v1/auth/me \
   -H "Authorization: Bearer <jwt-token>"
+```
+
+## Auth Endpoints
+
+```text
+POST /api/v1/auth/register      Create a regular user
+POST /api/v1/auth/login         Return a bearer token
+GET  /api/v1/auth/me            Return the current user
+GET  /api/v1/auth/admin-only    Require an admin user
+```
+
+Newly registered users use the `regular` role. The base migration creates the
+users table only; it does not seed an admin user.
+
+## Quality
+
+Run Ruff:
+```bash
+uv run ruff check .
 ```
 
 ## Key Files
