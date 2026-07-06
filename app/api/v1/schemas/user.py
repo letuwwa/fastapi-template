@@ -1,7 +1,6 @@
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Field
-
 from app.db.models import UserRole
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class UserRegister(BaseModel):
@@ -22,8 +21,3 @@ class UserRead(BaseModel):
     last_name: str
     role: UserRole
     is_active: bool
-
-
-class AccessToken(BaseModel):
-    access_token: str
-    token_type: str = "bearer"

@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, Form, HTTPException, status
 
 from app.db.deps import get_db
 from app.db.models import User, UserRole
-from app.api.schemas import AccessToken, UserRead, UserRegister
+from app.api.v1.schemas import AccessToken
+from app.api.v1.schemas import UserRegister, UserRead
 from app.core.security import (
     hash_password,
     verify_password,
