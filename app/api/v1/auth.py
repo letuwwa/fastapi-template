@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Annotated
 
 from sqlalchemy import or_, select
@@ -6,14 +7,18 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 
 from app.db.deps import get_db
-from app.db.models import User, UserRole
-from app.api.v1.schemas import AccessToken
+from app.db.models import TokenBlocklist, User, UserRole
+from app.api.v1.schemas import AccessToken, AuthResponse, TokenPair
 from app.api.v1.schemas import UserRegister, UserRead
 from app.core.security import (
+    decode_token,
     hash_password,
     verify_password,
     get_current_user,
+    get_token_user,
     create_access_token,
+    create_refresh_token,
+    oauth2_scheme,
     require_admin,
 )
 
@@ -33,13 +38,13 @@ class LoginForm:
 
 @router.post(
     "/register",
-    response_model=UserRead,
+    response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def register_user(
     user_in: UserRegister,
     db: Session = Depends(get_db),
-) -> User:
+) -> dict[str, User | TokenPair]:
     existing_user = db.scalar(
         select(User).where(
             or_(
@@ -74,14 +79,17 @@ def register_user(
         ) from exc
 
     db.refresh(user)
-    return user
+    return {
+        "user": user,
+        "tokens": _create_token_pair(user),
+    }
 
 
-@router.post("/login", response_model=AccessToken)
+@router.post("/login", response_model=AuthResponse)
 def login_user(
     form_data: LoginForm = Depends(),
     db: Session = Depends(get_db),
-) -> AccessToken:
+) -> dict[str, User | TokenPair]:
     user = db.scalar(
         select(User).where(
             or_(
@@ -103,7 +111,52 @@ def login_user(
             detail="Inactive user",
         )
 
+    return {
+        "user": user,
+        "tokens": _create_token_pair(user),
+    }
+
+
+@router.post("/refresh", response_model=AccessToken)
+def refresh_token(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> AccessToken:
+    payload = decode_token(token)
+    user = get_token_user(db, payload, token_type="refresh")
     return AccessToken(access_token=create_access_token(user))
+
+
+@router.post("/logout")
+def logout_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    payload = decode_token(token)
+    token_type = payload.get("type")
+    if token_type not in {"access", "refresh"}:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = get_token_user(db, payload, token_type=token_type)
+    expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    revoked_token = TokenBlocklist(
+        jti=payload["jti"],
+        token_type=payload["type"],
+        user_id=str(user.id),
+        expires_at=expires_at,
+    )
+
+    db.add(revoked_token)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+
+    return {"message": "Token revoked"}
 
 
 @router.get("/me", response_model=UserRead)
@@ -121,3 +174,10 @@ def read_admin_only(
         "message": "Admin access granted",
         "user_id": str(current_user.id),
     }
+
+
+def _create_token_pair(user: User) -> TokenPair:
+    return TokenPair(
+        access_token=create_access_token(user),
+        refresh_token=create_refresh_token(user),
+    )

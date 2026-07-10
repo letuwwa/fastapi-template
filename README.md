@@ -42,6 +42,7 @@ JWT_SECRET_KEY=<long-random-secret>
 
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=30
 ```
 
 ## Database
@@ -99,12 +100,14 @@ curl http://localhost:8000/api/v1/auth/me \
 ```text
 POST /api/v1/auth/register      Create a regular user
 POST /api/v1/auth/login         Return a bearer token
+POST /api/v1/auth/refresh       Return a new access token from a refresh token
+POST /api/v1/auth/logout        Revoke the presented access or refresh token
 GET  /api/v1/auth/me            Return the current user
 GET  /api/v1/auth/admin-only    Require an admin user
 ```
 
 Newly registered users use the `regular` role. The base migration creates the
-users table only; it does not seed an admin user.
+users and token blocklist tables; it does not seed an admin user.
 
 ## Quality
 
