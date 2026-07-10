@@ -1,7 +1,8 @@
-## FastAPI Template
+# FastAPI Template
 
 FastAPI starter with PostgreSQL, SQLAlchemy, Alembic migrations, JWT auth,
-password hashing, and role-based admin protection.
+password hashing, refresh/logout token handling, and role-based admin
+protection.
 
 ## Requirements
 
@@ -39,13 +40,13 @@ POSTGRES_PASSWORD=postgres
 POSTGRES_DB=fastapi_template
 
 JWT_SECRET_KEY=<long-random-secret>
-
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=30
 ```
 
 ## Database
+
 Create the database if needed:
 ```bash
 createdb fastapi_template
@@ -62,6 +63,7 @@ uv run alembic revision --autogenerate -m "describe change"
 ```
 
 ## Run
+
 ```bash
 uv run fastapi dev app/main.py
 ```
@@ -78,7 +80,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
     "username": "exampleuser",
     "first_name": "Example",
     "last_name": "User",
-    "password": "password123"
+    "password": "password123456"
   }'
 ```
 
@@ -86,7 +88,7 @@ Login with an email or username:
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=user@example.com&password=password123"
+  -d "username=user@example.com&password=password123456"
 ```
 
 Use token:
@@ -98,8 +100,8 @@ curl http://localhost:8000/api/v1/auth/me \
 ## Auth Endpoints
 
 ```text
-POST /api/v1/auth/register      Create a regular user
-POST /api/v1/auth/login         Return a bearer token
+POST /api/v1/auth/register      Create a regular user and return token pair
+POST /api/v1/auth/login         Return the user and token pair
 POST /api/v1/auth/refresh       Return a new access token from a refresh token
 POST /api/v1/auth/logout        Revoke the presented access or refresh token
 GET  /api/v1/auth/me            Return the current user
@@ -117,11 +119,25 @@ uv run ruff check .
 ```
 
 ## Key Files
+
 ```text
-app/main.py              FastAPI app
-app/api/v1/auth.py       Auth routes
-app/core/security.py     Password hashing and JWT logic
-app/core/settings.py     Env settings
-app/db/models/user.py    User model and roles
-alembic/versions/        DB migrations
+app/main.py                       FastAPI app
+app/api/v1/auth.py                Auth routes
+app/core/security.py              Password hashing and JWT logic
+app/core/settings.py              Env settings
+app/db/models/user.py             User model and roles
+app/db/models/token_blocklist.py  Revoked token model
+alembic/versions/                 DB migrations
 ```
+
+## Status
+
+Done:
+- Clean project structure
+- Env variables support
+- DB base model and migrations setup
+- JWT auth with refresh/logout and role-based admin protection
+
+To do:
+- Docker pre-settings
+- Docs
