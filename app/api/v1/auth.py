@@ -90,31 +90,28 @@ def login_user(
     form_data: LoginForm = Depends(),
     db: Session = Depends(get_db),
 ) -> dict[str, User | TokenPair]:
-    user = db.scalar(
-        select(User).where(
-            or_(
-                User.email == form_data.username,
-                User.username == form_data.username,
-            )
-        )
+    user = _authenticate_user(
+        db=db,
+        username=form_data.username,
+        password=form_data.password,
     )
-    if user is None or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
-        )
-
     return {
         "user": user,
         "tokens": _create_token_pair(user),
     }
+
+
+@router.post("/token", response_model=TokenPair)
+def token_user(
+    form_data: LoginForm = Depends(),
+    db: Session = Depends(get_db),
+) -> TokenPair:
+    user = _authenticate_user(
+        db=db,
+        username=form_data.username,
+        password=form_data.password,
+    )
+    return _create_token_pair(user)
 
 
 @router.post("/refresh", response_model=AccessToken)
@@ -181,3 +178,28 @@ def _create_token_pair(user: User) -> TokenPair:
         access_token=create_access_token(user),
         refresh_token=create_refresh_token(user),
     )
+
+
+def _authenticate_user(db: Session, username: str, password: str) -> User:
+    user = db.scalar(
+        select(User).where(
+            or_(
+                User.email == username,
+                User.username == username,
+            )
+        )
+    )
+    if user is None or not verify_password(password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user",
+        )
+
+    return user

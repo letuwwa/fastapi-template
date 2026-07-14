@@ -91,6 +91,13 @@ curl -X POST http://localhost:8000/api/v1/auth/login \
   -d "username=user@example.com&password=password123456"
 ```
 
+Swagger OAuth2 login endpoint:
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=user@example.com&password=password123456"
+```
+
 Use token:
 ```bash
 curl http://localhost:8000/api/v1/auth/me \
@@ -102,6 +109,7 @@ curl http://localhost:8000/api/v1/auth/me \
 ```text
 POST /api/v1/auth/register      Create a regular user and return token pair
 POST /api/v1/auth/login         Return the user and token pair
+POST /api/v1/auth/token         Return an OAuth2-compatible token pair
 POST /api/v1/auth/refresh       Return a new access token from a refresh token
 POST /api/v1/auth/logout        Revoke the presented access or refresh token
 GET  /api/v1/auth/me            Return the current user
