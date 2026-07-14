@@ -1,9 +1,9 @@
 import jwt
-from typing import Any
 from uuid import UUID
 from uuid import uuid4
-from pwdlib import PasswordHash
+from typing import Any
 from sqlalchemy import select
+from pwdlib import PasswordHash
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
@@ -54,9 +54,7 @@ def decode_token(token: str) -> dict[str, Any]:
 
 
 def is_token_revoked(db: Session, jti: str) -> bool:
-    token_id = db.scalar(
-        select(TokenBlocklist.id).where(TokenBlocklist.jti == jti)
-    )
+    token_id = db.scalar(select(TokenBlocklist.id).where(TokenBlocklist.jti == jti))
     return token_id is not None
 
 
