@@ -71,6 +71,19 @@ uv run fastapi dev app/main.py
 The API is served at `http://localhost:8000`. Interactive docs are available at
 `http://localhost:8000/docs`.
 
+## Docker
+
+Build and run the backend with PostgreSQL 17:
+```bash
+docker compose up --build
+```
+
+The backend container runs Alembic migrations before starting the API. The API
+is served at `http://localhost:8000`.
+
+PostgreSQL is exposed on the host port defined by `POSTGRES_PORT`, defaulting
+to `5432`. Inside Docker Compose, the backend uses `POSTGRES_HOST=postgres`.
+
 Register a user:
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \
