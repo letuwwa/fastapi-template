@@ -83,6 +83,8 @@ is served at `http://localhost:8000`.
 
 PostgreSQL is exposed on the host port defined by `POSTGRES_PORT`, defaulting
 to `5432`. Inside Docker Compose, the backend uses `POSTGRES_HOST=postgres`.
+PostgreSQL data is not mounted to a named volume, so recreating the database
+container resets local database state.
 
 Register a user:
 ```bash
@@ -159,6 +161,3 @@ Done:
 - DB base model and migrations setup
 - JWT auth with refresh/logout and role-based admin protection
 
-To do:
-- Docker pre-settings
-- Docs
