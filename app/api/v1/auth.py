@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, status
 from app.db.deps import get_db
 from app.api.v1.schemas import UserRegister, UserRead
 from app.db.models import TokenBlocklist, User, UserRole
+from app.api.v1.utils import authenticate_user, create_token_pair
 from app.api.v1.schemas import AccessToken, AuthResponse, TokenPair
 from app.core.security import (
     decode_token,
@@ -16,10 +17,8 @@ from app.core.security import (
     require_admin,
     hash_password,
     get_token_user,
-    verify_password,
     get_current_user,
     create_access_token,
-    create_refresh_token,
 )
 
 
@@ -81,7 +80,7 @@ def register_user(
     db.refresh(user)
     return {
         "user": user,
-        "tokens": _create_token_pair(user),
+        "tokens": create_token_pair(user),
     }
 
 
@@ -90,14 +89,14 @@ def login_user(
     form_data: LoginForm = Depends(),
     db: Session = Depends(get_db),
 ) -> dict[str, User | TokenPair]:
-    user = _authenticate_user(
+    user = authenticate_user(
         db=db,
         username=form_data.username,
         password=form_data.password,
     )
     return {
         "user": user,
-        "tokens": _create_token_pair(user),
+        "tokens": create_token_pair(user),
     }
 
 
@@ -106,12 +105,12 @@ def token_user(
     form_data: LoginForm = Depends(),
     db: Session = Depends(get_db),
 ) -> TokenPair:
-    user = _authenticate_user(
+    user = authenticate_user(
         db=db,
         username=form_data.username,
         password=form_data.password,
     )
-    return _create_token_pair(user)
+    return create_token_pair(user)
 
 
 @router.post("/refresh", response_model=AccessToken)
@@ -171,35 +170,3 @@ def read_admin_only(
         "message": "Admin access granted",
         "user_id": str(current_user.id),
     }
-
-
-def _create_token_pair(user: User) -> TokenPair:
-    return TokenPair(
-        access_token=create_access_token(user),
-        refresh_token=create_refresh_token(user),
-    )
-
-
-def _authenticate_user(db: Session, username: str, password: str) -> User:
-    user = db.scalar(
-        select(User).where(
-            or_(
-                User.email == username,
-                User.username == username,
-            )
-        )
-    )
-    if user is None or not verify_password(password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
-        )
-
-    return user
