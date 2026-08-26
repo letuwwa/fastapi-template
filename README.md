@@ -8,7 +8,7 @@ Docker, and role-based admin protection.
 
 - Python 3.14+
 - FastAPI
-- PostgreSQL 17
+- PostgreSQL 18
 - SQLAlchemy 2
 - Alembic
 - Pydantic Settings
@@ -31,7 +31,14 @@ Install dependencies:
 uv sync
 ```
 
-Create a `.env` file:
+Copy the example configuration and replace the blank JWT secret:
+
+```bash
+cp .env.example .env
+openssl rand -hex 32
+```
+
+The resulting `.env` should contain:
 
 ```env
 APP_NAME=fastapi-template
@@ -44,27 +51,24 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=fastapi_template
 
-JWT_SECRET_KEY=<long-random-secret>
+JWT_SECRET_KEY=<paste-the-generated-secret>
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=30
 ```
 
-Generate suitable local secrets:
-
-```bash
-openssl rand -hex 32
-```
-
 `JWT_SECRET_KEY` is required for secure token signing. Use a long random value
-for local development and production.
+for local development and a separate secret in every deployed environment.
+Access-token lifetime must not exceed refresh-token lifetime.
 
 ## Database
 
-Create the local database if it does not exist:
+### Native PostgreSQL
+
+Create the configured local database if it does not exist:
 
 ```bash
-createdb fastapi_template
+createdb -h localhost -p 5432 -U postgres fastapi_template
 ```
 
 Run migrations:
@@ -78,6 +82,24 @@ Create a migration after model changes:
 ```bash
 uv run alembic revision --autogenerate -m "describe change"
 ```
+
+### Docker PostgreSQL
+
+To create only the project database on localhost, set `JWT_SECRET_KEY` in
+`.env`, then run:
+
+```bash
+docker compose up -d postgres
+```
+
+The default host port is `5432`. If it is already occupied, choose another
+localhost port without changing the container port:
+
+```env
+POSTGRES_PORT=5434
+```
+
+The backend always uses PostgreSQL's internal Compose port `5432`.
 
 ## Run Locally
 
@@ -101,18 +123,18 @@ curl http://localhost:8000/
 Build and run the API with PostgreSQL:
 
 ```bash
-export JWT_SECRET_KEY="$(openssl rand -hex 32)"
 docker compose up --build
 ```
 
-Compose refuses to start the backend unless `JWT_SECRET_KEY` is set, preventing
-accidental use of a public default signing key.
+Compose reads `JWT_SECRET_KEY` from `.env` and refuses to start the backend when
+it is missing, preventing accidental use of a public default signing key.
 
 The backend waits for PostgreSQL to become healthy, runs Alembic migrations,
 then starts FastAPI on `http://localhost:8000`.
 
-Docker Compose starts a `backend` service and a `postgres` service. The backend
-connects to PostgreSQL through the internal Compose hostname:
+Docker Compose starts a non-root `backend` service and a PostgreSQL 18 service.
+Both published ports bind only to `127.0.0.1`. The backend connects through the
+internal Compose hostname:
 
 ```env
 POSTGRES_HOST=postgres
@@ -122,15 +144,24 @@ POSTGRES_PASSWORD=postgres
 POSTGRES_DB=fastapi_template
 ```
 
-PostgreSQL is exposed to the host on `POSTGRES_PORT`, defaulting to `5432`.
+PostgreSQL is exposed to localhost on `POSTGRES_PORT`, defaulting to `5432`.
+The API is exposed on `BACKEND_PORT`, defaulting to `8000`.
 
-Database data is not mounted to a named volume, so recreating the PostgreSQL
-container resets local Docker database state.
+Database data is stored in the container and is intended for disposable local
+development. Running `docker compose down` and recreating the database container
+resets that state.
 
 Stop and remove the containers:
 
 ```bash
 docker compose down
+```
+
+Check service health and logs:
+
+```bash
+docker compose ps
+docker compose logs backend postgres
 ```
 
 ## Authentication
@@ -208,13 +239,14 @@ users and token blocklist tables; it does not seed an admin user.
 
 ```text
 email       Max 255 characters
-username    1-100 non-whitespace characters
+username    1-100 ASCII letters, digits, underscores, or hyphens
 password    8-128 characters
 first_name  1-30 non-whitespace characters
 last_name   1-30 non-whitespace characters
 ```
 
-Email addresses are validated and normalized to lowercase before storage.
+Email addresses are validated and normalized to lowercase before storage and
+login. Usernames cannot contain `@`, preventing ambiguous login identifiers.
 
 ## Quality
 
@@ -222,12 +254,20 @@ Run Ruff:
 
 ```bash
 uv run ruff check .
+uv run ruff format --check .
 ```
 
 Run the test suite:
 
 ```bash
 uv run pytest
+```
+
+Update and inspect dependencies:
+
+```bash
+uv lock --upgrade
+uv tree --outdated --depth 1
 ```
 
 ## Project Layout
@@ -246,4 +286,6 @@ app/db/models/token_blocklist.py  Revoked token model
 alembic/versions/                 Alembic migrations
 docker-compose.yml                Backend and PostgreSQL services
 Dockerfile                        Backend image
+docker/entrypoint.sh              Migrations and container process startup
+tests/                             Authentication and settings regression tests
 ```
