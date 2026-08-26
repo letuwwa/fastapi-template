@@ -6,7 +6,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-
 os.environ.setdefault("POSTGRES_HOST", "localhost")
 os.environ.setdefault("POSTGRES_USER", "postgres")
 os.environ.setdefault("POSTGRES_PASSWORD", "postgres")
@@ -15,9 +14,8 @@ os.environ.setdefault(
     "JWT_SECRET_KEY", "test-secret-key-that-is-at-least-32-characters"
 )
 
-from app.db import models  # noqa: E402, F401
-from app.db.models.base_model import BaseModel  # noqa: E402
-
+from app.db import models  # noqa: F401
+from app.db.models.base_model import BaseModel
 
 engine = create_engine(
     "sqlite://",

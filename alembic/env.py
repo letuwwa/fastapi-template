@@ -1,11 +1,10 @@
-from alembic import context
-from sqlalchemy import pool
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
 
+from sqlalchemy import engine_from_config, pool
+
+from alembic import context
 from app.core import settings
 from app.db.models.base_model import BaseModel
-
 
 config = context.config
 config.set_main_option(
