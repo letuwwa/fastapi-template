@@ -1,25 +1,23 @@
+from datetime import UTC, datetime
 from typing import Annotated
-from datetime import datetime, timezone
 
-from sqlalchemy import delete, or_, select
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from fastapi import APIRouter, Depends, Form, HTTPException, status
+from sqlalchemy import delete, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app.db.deps import get_db
-from app.api.v1.schemas import UserRegister, UserRead
-from app.db.models import TokenBlocklist, User, UserRole
+from app.api.v1.schemas import AuthResponse, TokenPair, UserRead, UserRegister
 from app.api.v1.utils import authenticate_user, create_token_pair
-from app.api.v1.schemas import AuthResponse, TokenPair
 from app.core.security import (
     decode_token,
+    get_current_user,
+    get_token_user,
+    hash_password,
     oauth2_scheme,
     require_admin,
-    hash_password,
-    get_token_user,
-    get_current_user,
 )
-
+from app.db.deps import get_db
+from app.db.models import TokenBlocklist, User, UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,8 +25,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class LoginForm:
     def __init__(
         self,
-        username: Annotated[str, Form()],
-        password: Annotated[str, Form()],
+        username: Annotated[str, Form(min_length=1, max_length=255)],
+        password: Annotated[str, Form(min_length=8, max_length=128)],
     ) -> None:
         self.username = username
         self.password = password
@@ -153,8 +151,8 @@ def revoke_session(db: Session, payload: dict, user: User) -> None:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    now = datetime.now(timezone.utc)
-    expires_at = datetime.fromtimestamp(session_exp, tz=timezone.utc)
+    now = datetime.now(UTC)
+    expires_at = datetime.fromtimestamp(session_exp, tz=UTC)
     db.execute(delete(TokenBlocklist).where(TokenBlocklist.expires_at <= now))
     revoked_token = TokenBlocklist(
         jti=session_id,

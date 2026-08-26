@@ -1,5 +1,6 @@
 import enum
-from sqlalchemy import Enum, String
+
+from sqlalchemy import CheckConstraint, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.models.base_model import BaseModel
@@ -12,6 +13,9 @@ class UserRole(str, enum.Enum):
 
 class User(BaseModel):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("username NOT LIKE '%@%'", name="ck_users_username_no_at"),
+    )
 
     email: Mapped[str] = mapped_column(
         String(255),

@@ -1,12 +1,18 @@
 from typing import Annotated
 from uuid import UUID
 
-from app.db.models import UserRole
 from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints, field_validator
 
+from app.db.models import UserRole
 
 Username = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    ),
 ]
 Name = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)

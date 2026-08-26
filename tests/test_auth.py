@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.auth import logout_user, refresh_token, register_user
 from app.api.v1.schemas import UserRegister
+from app.api.v1.utils import authenticate_user
 from app.core.security import decode_token, get_token_user
 from app.db.models import TokenBlocklist
-
 
 REGISTER_PAYLOAD = {
     "email": "User@Example.com",
@@ -31,6 +31,8 @@ def register(db: Session) -> dict:
         ("email", "not-an-email"),
         ("email", ""),
         ("username", "   "),
+        ("username", "user@example.com"),
+        ("username", "invalid username"),
         ("first_name", ""),
         ("last_name", "   "),
     ],
@@ -61,6 +63,14 @@ def test_registration_normalizes_email_and_names(db: Session) -> None:
     assert user.username == "exampleuser"
     assert user.first_name == "Example"
     assert user.last_name == "User"
+
+
+def test_login_email_is_case_insensitive(db: Session) -> None:
+    register(db)
+
+    user = authenticate_user(db, " USER@EXAMPLE.COM ", REGISTER_PAYLOAD["password"])
+
+    assert user.email == "user@example.com"
 
 
 def test_logout_revokes_access_and_refresh_tokens(db: Session) -> None:
@@ -110,7 +120,7 @@ def test_revocation_removes_expired_blocklist_entries(
             jti=expired_id,
             token_type="session",
             user_id="00000000-0000-0000-0000-000000000000",
-            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+            expires_at=datetime.now(UTC) - timedelta(days=1),
         )
     )
     db.commit()

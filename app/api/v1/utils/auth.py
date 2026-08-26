@@ -1,19 +1,19 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from fastapi import HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
 
-from app.core import settings
-from app.db.models import User
 from app.api.v1.schemas import TokenPair
+from app.core import settings
 from app.core.security import create_access_token, create_refresh_token, verify_password
+from app.db.models import User
 
 
 def create_token_pair(user: User) -> TokenPair:
     session_id = str(uuid4())
-    session_expires_at = datetime.now(timezone.utc) + timedelta(
+    session_expires_at = datetime.now(UTC) + timedelta(
         days=settings.refresh_token_expire_days
     )
     return TokenPair(
@@ -23,11 +23,12 @@ def create_token_pair(user: User) -> TokenPair:
 
 
 def authenticate_user(db: Session, username: str, password: str) -> User:
+    identifier = username.strip()
     user = db.scalar(
         select(User).where(
             or_(
-                User.email == username,
-                User.username == username,
+                User.email == identifier.lower(),
+                User.username == identifier,
             )
         )
     )
