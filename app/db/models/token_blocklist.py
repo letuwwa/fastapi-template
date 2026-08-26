@@ -25,5 +25,6 @@ class TokenBlocklist(BaseModel):
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
+        index=True,
         nullable=False,
     )

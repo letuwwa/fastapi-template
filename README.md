@@ -101,8 +101,12 @@ curl http://localhost:8000/
 Build and run the API with PostgreSQL:
 
 ```bash
+export JWT_SECRET_KEY="$(openssl rand -hex 32)"
 docker compose up --build
 ```
+
+Compose refuses to start the backend unless `JWT_SECRET_KEY` is set, preventing
+accidental use of a public default signing key.
 
 The backend waits for PostgreSQL to become healthy, runs Alembic migrations,
 then starts FastAPI on `http://localhost:8000`.
@@ -168,14 +172,16 @@ curl http://localhost:8000/api/v1/auth/me \
   -H "Authorization: Bearer <access-token>"
 ```
 
-Refresh an access token with a refresh token:
+Rotate a session with a refresh token. The old access and refresh tokens are
+revoked, and a new token pair is returned:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/refresh \
   -H "Authorization: Bearer <refresh-token>"
 ```
 
-Logout by revoking the presented access or refresh token:
+Logout by revoking the session associated with the presented access or refresh
+token. Both tokens in the pair are invalidated:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/logout \
@@ -189,8 +195,8 @@ GET  /                              Health-style root response
 POST /api/v1/auth/register          Create a regular user and return token pair
 POST /api/v1/auth/login             Return the user and token pair
 POST /api/v1/auth/token             Return an OAuth2-compatible token pair
-POST /api/v1/auth/refresh           Return a new access token from a refresh token
-POST /api/v1/auth/logout            Revoke the presented access or refresh token
+POST /api/v1/auth/refresh           Rotate a refresh token and return a new token pair
+POST /api/v1/auth/logout            Revoke the presented token's entire session
 GET  /api/v1/auth/me                Return the current user
 GET  /api/v1/auth/admin-only        Require an admin user
 ```
@@ -202,11 +208,13 @@ users and token blocklist tables; it does not seed an admin user.
 
 ```text
 email       Max 255 characters
-username    Max 100 characters
+username    1-100 non-whitespace characters
 password    8-128 characters
-first_name  Max 30 characters
-last_name   Max 30 characters
+first_name  1-30 non-whitespace characters
+last_name   1-30 non-whitespace characters
 ```
+
+Email addresses are validated and normalized to lowercase before storage.
 
 ## Quality
 
@@ -214,6 +222,12 @@ Run Ruff:
 
 ```bash
 uv run ruff check .
+```
+
+Run the test suite:
+
+```bash
+uv run pytest
 ```
 
 ## Project Layout

@@ -1,4 +1,6 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
 
 
 class Settings(BaseSettings):
@@ -18,10 +20,10 @@ class Settings(BaseSettings):
     postgres_password: str
     postgres_db: str
 
-    jwt_secret_key: str
+    jwt_secret_key: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 30
+    access_token_expire_minutes: int = Field(default=30, gt=0)
+    refresh_token_expire_days: int = Field(default=30, gt=0)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -29,13 +31,14 @@ class Settings(BaseSettings):
     )
 
     @property
-    def database_url(self) -> str:
-        return (
-            f"postgresql://{self.postgres_user}:"
-            f"{self.postgres_password}@"
-            f"{self.postgres_host}:"
-            f"{self.postgres_port}/"
-            f"{self.postgres_db}"
+    def database_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+psycopg2",
+            username=self.postgres_user,
+            password=self.postgres_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
         )
 
 

@@ -1,14 +1,30 @@
+from typing import Annotated
 from uuid import UUID
+
 from app.db.models import UserRole
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints, field_validator
+
+
+Username = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
+Name = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)
+]
+Email = Annotated[EmailStr, StringConstraints(max_length=255)]
 
 
 class UserRegister(BaseModel):
-    email: str = Field(max_length=255)
-    username: str = Field(max_length=100)
-    first_name: str = Field(max_length=30)
-    last_name: str = Field(max_length=30)
-    password: str = Field(min_length=8, max_length=128)
+    email: Email
+    username: Username
+    first_name: Name
+    last_name: Name
+    password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def normalize_email(cls, value: EmailStr) -> str:
+        return str(value).lower()
 
 
 class UserRead(BaseModel):

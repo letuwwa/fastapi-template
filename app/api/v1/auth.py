@@ -1,7 +1,7 @@
 from typing import Annotated
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import APIRouter, Depends, Form, HTTPException, status
@@ -10,7 +10,7 @@ from app.db.deps import get_db
 from app.api.v1.schemas import UserRegister, UserRead
 from app.db.models import TokenBlocklist, User, UserRole
 from app.api.v1.utils import authenticate_user, create_token_pair
-from app.api.v1.schemas import AccessToken, AuthResponse, TokenPair
+from app.api.v1.schemas import AuthResponse, TokenPair
 from app.core.security import (
     decode_token,
     oauth2_scheme,
@@ -18,7 +18,6 @@ from app.core.security import (
     hash_password,
     get_token_user,
     get_current_user,
-    create_access_token,
 )
 
 
@@ -113,14 +112,15 @@ def token_user(
     return create_token_pair(user)
 
 
-@router.post("/refresh", response_model=AccessToken)
+@router.post("/refresh", response_model=TokenPair)
 def refresh_token(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
-) -> AccessToken:
+) -> TokenPair:
     payload = decode_token(token)
     user = get_token_user(db, payload, token_type="refresh")
-    return AccessToken(access_token=create_access_token(user))
+    revoke_session(db, payload, user)
+    return create_token_pair(user)
 
 
 @router.post("/logout")
@@ -138,10 +138,27 @@ def logout_user(
         )
 
     user = get_token_user(db, payload, token_type=token_type)
-    expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    revoke_session(db, payload, user)
+
+    return {"message": "Session revoked"}
+
+
+def revoke_session(db: Session, payload: dict, user: User) -> None:
+    session_id = payload.get("sid")
+    session_exp = payload.get("session_exp")
+    if not isinstance(session_id, str) or not isinstance(session_exp, (int, float)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    now = datetime.now(timezone.utc)
+    expires_at = datetime.fromtimestamp(session_exp, tz=timezone.utc)
+    db.execute(delete(TokenBlocklist).where(TokenBlocklist.expires_at <= now))
     revoked_token = TokenBlocklist(
-        jti=payload["jti"],
-        token_type=payload["type"],
+        jti=session_id,
+        token_type="session",
         user_id=str(user.id),
         expires_at=expires_at,
     )
@@ -149,10 +166,13 @@ def logout_user(
     db.add(revoked_token)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
-
-    return {"message": "Token revoked"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has already been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 @router.get("/me", response_model=UserRead)

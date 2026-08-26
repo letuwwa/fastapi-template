@@ -1,16 +1,24 @@
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
+from app.core import settings
 from app.db.models import User
 from app.api.v1.schemas import TokenPair
 from app.core.security import create_access_token, create_refresh_token, verify_password
 
 
 def create_token_pair(user: User) -> TokenPair:
+    session_id = str(uuid4())
+    session_expires_at = datetime.now(timezone.utc) + timedelta(
+        days=settings.refresh_token_expire_days
+    )
     return TokenPair(
-        access_token=create_access_token(user),
-        refresh_token=create_refresh_token(user),
+        access_token=create_access_token(user, session_id, session_expires_at),
+        refresh_token=create_refresh_token(user, session_id, session_expires_at),
     )
 
 
