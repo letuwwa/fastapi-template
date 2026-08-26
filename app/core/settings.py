@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -29,6 +29,15 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+
+    @model_validator(mode="after")
+    def validate_token_lifetimes(self) -> Settings:
+        refresh_minutes = self.refresh_token_expire_days * 24 * 60
+        if self.access_token_expire_minutes > refresh_minutes:
+            raise ValueError(
+                "Access token lifetime cannot exceed refresh token lifetime"
+            )
+        return self
 
     @property
     def database_url(self) -> URL:

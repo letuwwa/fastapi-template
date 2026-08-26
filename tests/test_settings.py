@@ -3,7 +3,6 @@ from pydantic import ValidationError
 
 from app.core.settings import Settings
 
-
 BASE_SETTINGS = {
     "postgres_host": "db.example",
     "postgres_user": "user@tenant",
@@ -33,3 +32,13 @@ def test_database_url_preserves_special_characters() -> None:
 def test_rejects_insecure_token_settings(field: str, value: object) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **(BASE_SETTINGS | {field: value}))
+
+
+def test_rejects_access_tokens_that_outlive_refresh_session() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            **BASE_SETTINGS,
+            access_token_expire_minutes=1441,
+            refresh_token_expire_days=1,
+        )

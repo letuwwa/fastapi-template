@@ -1,18 +1,17 @@
-import jwt
-from uuid import UUID
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from sqlalchemy import select
-from pwdlib import PasswordHash
-from sqlalchemy.orm import Session
-from fastapi.security import OAuth2PasswordBearer
+from uuid import UUID, uuid4
+
+import jwt
 from fastapi import Depends, HTTPException, status
-from datetime import datetime, timedelta, timezone
+from fastapi.security import OAuth2PasswordBearer
+from pwdlib import PasswordHash
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core import settings
 from app.db.deps import get_db
 from app.db.models import TokenBlocklist, User, UserRole
-
 
 password_hash = PasswordHash.recommended()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
@@ -110,8 +109,9 @@ def _create_token(
     session_id: str,
     session_expires_at: datetime,
 ) -> str:
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        seconds=int(expires_delta.total_seconds()),
+    expires_at = min(
+        datetime.now(UTC) + timedelta(seconds=int(expires_delta.total_seconds())),
+        session_expires_at,
     )
     payload = {
         "sub": str(user.id),
