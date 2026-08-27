@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from math import isfinite
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -14,6 +15,8 @@ from app.db.deps import get_db
 from app.db.models import TokenBlocklist, User, UserRole
 
 password_hash = PasswordHash.recommended()
+# Keep nonexistent-user logins on the same password-verification path.
+DUMMY_PASSWORD_HASH = password_hash.hash("unused-dummy-password")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 
@@ -55,7 +58,7 @@ def create_refresh_token(
 
 def decode_token(token: str) -> dict[str, Any]:
     try:
-        return jwt.decode(
+        payload = jwt.decode(
             token,
             settings.jwt_secret_key,
             algorithms=[settings.jwt_algorithm],
@@ -63,8 +66,32 @@ def decode_token(token: str) -> dict[str, Any]:
                 "require": ["exp", "jti", "session_exp", "sid", "sub", "type"],
             },
         )
-    except jwt.InvalidTokenError as exc:
+    except (jwt.InvalidTokenError, TypeError, ValueError, OverflowError) as exc:
         raise _credentials_exception() from exc
+
+    # PyJWT checks registered claims, but our session claims need validation too.
+    if payload.get("type") not in ("access", "refresh"):
+        raise _credentials_exception()
+    for claim in ("jti", "sid"):
+        value = payload[claim]
+        if not isinstance(value, str) or not 1 <= len(value) <= 36:
+            raise _credentials_exception()
+
+    for claim in ("exp", "session_exp"):
+        value = payload[claim]
+        if type(value) not in (int, float):
+            raise _credentials_exception()
+        try:
+            if not isfinite(value):
+                raise ValueError("Non-finite token timestamp")
+            datetime.fromtimestamp(value, tz=UTC)
+        except (ValueError, OverflowError, OSError) as exc:
+            raise _credentials_exception() from exc
+
+    # Otherwise an early session expiry lets cleanup remove a live revocation.
+    if payload["exp"] > payload["session_exp"]:
+        raise _credentials_exception()
+    return payload
 
 
 def is_token_revoked(db: Session, token_identifier: str) -> bool:

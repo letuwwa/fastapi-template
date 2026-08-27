@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.schemas import TokenPair
 from app.core import settings
-from app.core.security import create_access_token, create_refresh_token, verify_password
+from app.core.security import (
+    DUMMY_PASSWORD_HASH,
+    create_access_token,
+    create_refresh_token,
+    verify_password,
+)
 from app.db.models import User
 
 
@@ -32,7 +37,9 @@ def authenticate_user(db: Session, username: str, password: str) -> User:
             )
         )
     )
-    if user is None or not verify_password(password, user.hashed_password):
+    hashed_password = user.hashed_password if user is not None else DUMMY_PASSWORD_HASH
+    password_valid = verify_password(password, hashed_password)
+    if user is None or not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

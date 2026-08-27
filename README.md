@@ -43,6 +43,7 @@ The resulting `.env` should contain:
 ```env
 APP_NAME=fastapi-template
 ENVIRONMENT=development
+BACKEND_PORT=8000
 ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:8000","http://127.0.0.1:3000","http://127.0.0.1:8000"]
 
 POSTGRES_HOST=localhost
@@ -60,6 +61,16 @@ REFRESH_TOKEN_EXPIRE_DAYS=30
 `JWT_SECRET_KEY` is required for secure token signing. Use a long random value
 for local development and a separate secret in every deployed environment.
 Access-token lifetime must not exceed refresh-token lifetime.
+Supported signing algorithms are `HS256` (default), `HS384`, and `HS512`.
+Keys must contain at least 32 characters and at least 32, 48, or 64 UTF-8 bytes,
+respectively; blank keys are rejected. Asymmetric algorithms require a separate
+public/private-key configuration and are not supported by this template.
+
+`ALLOWED_ORIGINS` is a JSON list of explicit origins. Wildcard `*` is rejected
+because CORS credentials are enabled. `BACKEND_PORT` only controls the published
+Docker host port; for a local server, use the FastAPI CLI's `--port` option.
+Both configured port numbers must be between 1 and 65535. Unknown `.env` entries
+remain errors so configuration typos are caught at startup.
 
 ## Database
 
@@ -76,6 +87,12 @@ Run migrations:
 ```bash
 uv run alembic upgrade head
 ```
+
+The username constraint migration rejects existing usernames containing `@`.
+Review and rename those accounts before upgrading; the migration does not
+silently change user identities. Back up any database that contains valuable data
+before migrations. Downgrading to `base` removes all application tables and the
+`user_role` enum; do not run it against a database you want to preserve.
 
 Create a migration after model changes:
 
@@ -147,15 +164,19 @@ POSTGRES_DB=fastapi_template
 PostgreSQL is exposed to localhost on `POSTGRES_PORT`, defaulting to `5432`.
 The API is exposed on `BACKEND_PORT`, defaulting to `8000`.
 
-Database data is stored in the container and is intended for disposable local
-development. Running `docker compose down` and recreating the database container
-resets that state.
+The PostgreSQL image stores data in an anonymous Docker volume and is intended
+here for disposable local development. After `docker compose down`, a subsequent
+`up` does not automatically reuse that volume. Use a named volume and backups
+when persistence is required.
 
 Stop and remove the containers:
 
 ```bash
 docker compose down
 ```
+
+For disposable data, `docker compose down --volumes` also removes the anonymous
+database volume. This deletes the database contents.
 
 Check service health and logs:
 
@@ -219,6 +240,18 @@ curl -X POST http://localhost:8000/api/v1/auth/logout \
   -H "Authorization: Bearer <access-or-refresh-token>"
 ```
 
+Refresh rotation is single-use: concurrent requests using the same refresh
+token allow only one success; the other returns `401`. Clients should serialize
+refresh requests. A successful refresh starts a new session with a fresh refresh
+lifetime. Logout revokes only the presented pair, not other logins or a newer
+pair created by an earlier refresh. Authorization checks the user's current
+database role and active status, rather than trusting the role stored in the JWT.
+
+Malformed, expired, or revoked tokens return `401` with a Bearer challenge.
+Session expiry must cover token expiry so expired-blocklist cleanup cannot
+restore access to a still-valid token. Cleanup runs on refresh/logout; expired
+rows can remain during idle periods.
+
 ## API Routes
 
 ```text
@@ -241,8 +274,8 @@ users and token blocklist tables; it does not seed an admin user.
 email       Max 255 characters
 username    1-100 ASCII letters, digits, underscores, or hyphens
 password    8-128 characters
-first_name  1-30 non-whitespace characters
-last_name   1-30 non-whitespace characters
+first_name  1-30 characters after trimming surrounding whitespace
+last_name   1-30 characters after trimming surrounding whitespace
 ```
 
 Email addresses are validated and normalized to lowercase before storage and
@@ -263,12 +296,49 @@ Run the test suite:
 uv run pytest
 ```
 
+The default suite uses an isolated in-memory SQLite database and test settings;
+it does not connect to the configured application database. HTTP tests cover
+registration, login, authorization, refresh/logout, malformed JWTs, and CORS.
+`httpx2` is a development dependency used by Starlette's test client.
+
+Run PostgreSQL-specific migration and concurrency checks against a **test**
+database with permission to create schemas:
+
+```bash
+TEST_POSTGRES_URL='postgresql+psycopg2://user:password@localhost:5432/test_db' \
+  uv run pytest tests/postgres_checks.py -W error
+```
+
+These explicitly invoked checks create a unique schema per test and remove it
+afterward. They verify upgrade/downgrade/upgrade, model-to-migration alignment,
+and simultaneous registration and refresh requests. The repository has no
+dedicated static type checker or packaging build configured.
+
 Update and inspect dependencies:
 
 ```bash
 uv lock --upgrade
 uv tree --outdated --depth 1
 ```
+
+Review dependency updates before committing them; `uv lock --upgrade` updates
+the full lockfile. To check the existing lockfile without upgrading, run
+`uv lock --check`.
+
+## Deployment Boundaries
+
+This is a starter, not a complete production security configuration. Before
+public exposure, configure HTTPS, trusted proxy handling, request/body limits,
+and rate limits for registration, login, and refresh at your gateway or shared
+application infrastructure. Unknown-user login attempts still verify a dummy
+password hash, but that does not prevent brute force or resource exhaustion.
+Registration intentionally reports duplicate identifiers with `409`.
+
+Use separate signing secrets and least-privilege database credentials for each
+environment. Secret fields are omitted from settings representations and text
+validation errors; do not log settings dictionaries, tokens, or passwords.
+There is no password reset, email verification, or logout-all-sessions endpoint.
+`GET /` checks that the API process responds; it does not check database health.
 
 ## Project Layout
 
@@ -288,4 +358,5 @@ docker-compose.yml                Backend and PostgreSQL services
 Dockerfile                        Backend image
 docker/entrypoint.sh              Migrations and container process startup
 tests/                             Authentication and settings regression tests
+tests/postgres_checks.py           Explicit PostgreSQL migration and race checks
 ```

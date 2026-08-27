@@ -91,4 +91,5 @@ def downgrade() -> None:
     op.drop_table("token_blocklist")
 
     op.drop_table("users")
+    sa.Enum(name="user_role").drop(op.get_bind(), checkfirst=False)
     # ### end Alembic commands ###
