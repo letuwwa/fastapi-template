@@ -82,3 +82,13 @@ def test_settings_do_not_print_credentials() -> None:
         Settings(_env_file=None, **(BASE_SETTINGS | {"refresh_token_expire_days": 0}))
     assert BASE_SETTINGS["jwt_secret_key"] not in str(error.value)
     assert BASE_SETTINGS["postgres_password"] not in str(error.value)
+
+
+@pytest.mark.parametrize("days", [10**9, 10**100, 365 * 10000])
+def test_rejects_token_lifetimes_that_overflow_datetime(days: int) -> None:
+    with pytest.raises(ValidationError, match="Token lifetime"):
+        Settings(
+            _env_file=None,
+            **BASE_SETTINGS,
+            refresh_token_expire_days=days,
+        )

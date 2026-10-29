@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -61,6 +62,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Access token lifetime cannot exceed refresh token lifetime"
             )
+        try:
+            datetime.now(UTC) + timedelta(days=self.refresh_token_expire_days)
+        except OverflowError as exc:
+            raise ValueError(
+                "Token lifetime exceeds the supported datetime range"
+            ) from exc
         return self
 
     @property
