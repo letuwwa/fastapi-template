@@ -61,6 +61,8 @@ REFRESH_TOKEN_EXPIRE_DAYS=30
 `JWT_SECRET_KEY` is required for secure token signing. Use a long random value
 for local development and a separate secret in every deployed environment.
 Access-token lifetime must not exceed refresh-token lifetime.
+Token lifetimes must also fit within Python's supported datetime range; invalid
+values are rejected at startup.
 Supported signing algorithms are `HS256` (default), `HS384`, and `HS512`.
 Keys must contain at least 32 characters and at least 32, 48, or 64 UTF-8 bytes,
 respectively; blank keys are rejected. Asymmetric algorithms require a separate
@@ -248,6 +250,9 @@ pair created by an earlier refresh. Authorization checks the user's current
 database role and active status, rather than trusting the role stored in the JWT.
 
 Malformed, expired, or revoked tokens return `401` with a Bearer challenge.
+An unrecognized stored password hash also rejects login with `401` and emits a
+warning without including the hash or password; the account's stored data must
+be repaired separately.
 Session expiry must cover token expiry so expired-blocklist cleanup cannot
 restore access to a still-valid token. Cleanup runs on refresh/logout; expired
 rows can remain during idle periods.
@@ -296,6 +301,12 @@ Run the test suite:
 uv run pytest
 ```
 
+Measure application line and branch coverage (an 85% minimum is enforced):
+
+```bash
+uv run pytest --cov
+```
+
 The default suite uses an isolated in-memory SQLite database and test settings;
 it does not connect to the configured application database. HTTP tests cover
 registration, login, authorization, refresh/logout, malformed JWTs, and CORS.
@@ -313,6 +324,17 @@ These explicitly invoked checks create a unique schema per test and remove it
 afterward. They verify upgrade/downgrade/upgrade, model-to-migration alignment,
 and simultaneous registration and refresh requests. The repository has no
 dedicated static type checker or packaging build configured.
+
+To run all tests together and include migration files in coverage:
+
+```bash
+TEST_POSTGRES_URL='postgresql+psycopg2://user:password@localhost:5432/test_db' \
+  uv run pytest tests/test_*.py tests/postgres_checks.py \
+  --cov=app --cov=./alembic -W error
+```
+
+Use the filesystem path `./alembic` for coverage to avoid selecting the installed
+Alembic library. The default suite also checks offline migration SQL generation.
 
 Update and inspect dependencies:
 
