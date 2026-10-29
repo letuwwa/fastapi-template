@@ -316,3 +316,79 @@ def test_cors_only_allows_configured_origins(client: TestClient) -> None:
             assert response.headers["access-control-allow-origin"] == origin
         else:
             assert "access-control-allow-origin" not in response.headers
+
+
+@pytest.mark.parametrize("endpoint", ["login", "token"])
+@pytest.mark.parametrize("stored_hash", ["", "unsupported-hash", "$argon2id$broken"])
+def test_unrecognized_password_hash_rejects_login(
+    client: TestClient, db: Session, endpoint: str, stored_hash: str, caplog
+) -> None:
+    user = register(db)["user"]
+    user.hashed_password = stored_hash
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/auth/{endpoint}",
+        data={"username": user.username, "password": REGISTER_PAYLOAD["password"]},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect username or password"
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert "Stored password hash is not recognized" in caplog.text
+    assert REGISTER_PAYLOAD["password"] not in caplog.text
+    if stored_hash:
+        assert stored_hash not in caplog.text
+
+
+def test_logout_does_not_revoke_another_login(client: TestClient) -> None:
+    first = client.post("/api/v1/auth/register", json=REGISTER_PAYLOAD).json()["tokens"]
+    second = client.post(
+        "/api/v1/auth/token",
+        data={
+            "username": REGISTER_PAYLOAD["username"],
+            "password": REGISTER_PAYLOAD["password"],
+        },
+    ).json()
+    assert (
+        client.post(
+            "/api/v1/auth/logout",
+            headers={"Authorization": f"Bearer {first['access_token']}"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {second['access_token']}"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/v1/auth/refresh",
+            headers={"Authorization": f"Bearer {second['refresh_token']}"},
+        ).status_code
+        == 200
+    )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [{"username": "another_user"}, {"email": "another@example.com"}],
+)
+def test_registration_rejects_each_duplicate_identifier(
+    client: TestClient, changes: dict
+) -> None:
+    assert (
+        client.post("/api/v1/auth/register", json=REGISTER_PAYLOAD).status_code == 201
+    )
+    response = client.post("/api/v1/auth/register", json=REGISTER_PAYLOAD | changes)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email or username already exists"
+
+
+def test_root_response(client: TestClient) -> None:
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "environment": "test"}

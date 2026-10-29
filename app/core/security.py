@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from math import isfinite
 from typing import Any
@@ -7,6 +8,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
+from pwdlib.exceptions import UnknownHashError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,7 @@ from app.db.deps import get_db
 from app.db.models import TokenBlocklist, User, UserRole
 
 password_hash = PasswordHash.recommended()
+logger = logging.getLogger(__name__)
 # Keep nonexistent-user logins on the same password-verification path.
 DUMMY_PASSWORD_HASH = password_hash.hash("unused-dummy-password")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
@@ -25,7 +28,13 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, hashed_password: str) -> bool:
-    return password_hash.verify(password, hashed_password)
+    try:
+        return password_hash.verify(password, hashed_password)
+    except UnknownHashError:
+        # Reject damaged/unsupported hashes without exposing stored credentials.
+        logger.warning("Stored password hash is not recognized")
+        password_hash.verify(password, DUMMY_PASSWORD_HASH)
+        return False
 
 
 def create_access_token(
